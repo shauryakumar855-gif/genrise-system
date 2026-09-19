@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin Login — GenRise</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="formPage">
+  <div class="formCard">
+    <a class="brand" href="index.html"><span>Gen</span><b>Rise</b><small>LEARN • EARN • GROW</small></a>
+    <br><br>
+    <p class="eyebrow">ADMIN PORTAL</p>
+    <h1>Admin Login</h1>
+    <p>Sign in to manage GenRise.</p>
+    <form id="adminLoginForm">
+      <label>Admin Email</label>
+      <input type="email" name="email" required autocomplete="username">
+      <label>Password</label>
+      <input type="password" name="password" required autocomplete="current-password">
+      <button>Login as Admin</button>
+      <div class="message" id="message"></div>
+    </form>
+    <p class="switch"><a href="index.html">← Back to GenRise</a></p>
+  </div>
+</main>
+<script>
+adminLoginForm.onsubmit = async e => {
+  e.preventDefault();
+  message.textContent = '';
+  const r = await fetch('/api/admin/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.fromEntries(new FormData(adminLoginForm)))
+  });
+  const d = await r.json();
+  if(r.ok) location.href='admin.html';
+  else message.textContent = d.error || 'Login failed.';
+};
+</script>
+</body>
+</html>

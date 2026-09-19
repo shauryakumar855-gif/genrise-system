@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin Dashboard — GenRise</title><link rel="stylesheet" href="style.css">
+<style>
+.admin-wrap{max-width:1180px;margin:0 auto;padding:50px 24px 80px}
+.admin-top{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:30px}
+.admin-top h1{margin:0}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:25px 0 35px}
+.stat{background:#fff;border:1px solid #e8e4da;border-radius:18px;padding:24px;box-shadow:0 8px 24px rgba(20,40,35,.06)}
+.stat strong{display:block;font-size:34px;color:#173f39}.stat span{color:#6b756f}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:30px}
+.admin-card{background:#fff;border:1px solid #e8e4da;border-radius:18px;padding:24px;box-shadow:0 8px 24px rgba(20,40,35,.05)}
+.admin-card h2{margin-top:0}.admin-card form{display:grid;gap:10px}
+.admin-card input,.admin-card textarea,.admin-card select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d8d8d0;border-radius:10px;font:inherit}
+.admin-card textarea{min-height:100px;resize:vertical}
+.table-wrap{overflow:auto}.admin-table{width:100%;border-collapse:collapse;min-width:650px}.admin-table th,.admin-table td{text-align:left;padding:12px;border-bottom:1px solid #eee}.admin-table th{color:#315b54;font-size:13px}
+.small-btn{padding:8px 12px;border:0;border-radius:8px;cursor:pointer;margin-right:6px}.edit{background:#e8f1ef}.delete{background:#f5e5e1}
+.op-list{display:grid;gap:12px}.op-row{border:1px solid #eee;border-radius:12px;padding:15px}.op-row h3{margin:0 0 5px}.op-row p{margin:5px 0;color:#68736f}
+@media(max-width:800px){.stats,.admin-grid{grid-template-columns:1fr}.admin-top{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html"><span>Gen</span><b>Rise</b><small>LEARN • EARN • GROW</small></a>
+  <nav><a href="index.html">Home</a><a href="index.html#opportunities">Opportunities</a><a href="#" id="logout">Logout</a></nav>
+</header>
+
+<main class="admin-wrap">
+  <div class="admin-top">
+    <div><p class="eyebrow">GENRISE ADMIN</p><h1>Admin Dashboard</h1><p class="muted" id="adminEmail">Loading…</p></div>
+    <button class="outline" id="logout2">Logout</button>
+  </div>
+
+  <section class="stats">
+    <div class="stat"><strong id="userCount">0</strong><span>Registered Students</span></div>
+    <div class="stat"><strong id="opCount">0</strong><span>Opportunities</span></div>
+    <div class="stat"><strong id="saveCount">0</strong><span>Saved Opportunities</span></div>
+  </section>
+
+  <div class="admin-grid">
+    <section class="admin-card">
+      <h2 id="formTitle">Add Opportunity</h2>
+      <form id="opForm">
+        <input type="hidden" id="editId">
+        <label>Title</label><input id="title" required>
+        <label>Category</label>
+        <select id="category" required><option>Learning</option><option>Projects</option><option>Competitions</option><option>Career</option></select>
+        <label>Description</label><textarea id="description" required></textarea>
+        <label>Deadline</label><input id="deadline" placeholder="e.g. 30 September 2026">
+        <label>Link</label><input id="link" placeholder="https://example.com">
+        <div><button id="submitBtn">Add Opportunity</button> <button type="button" class="outline" id="cancelEdit" style="display:none">Cancel</button></div>
+        <div class="message" id="opMessage"></div>
+      </form>
+    </section>
+
+    <section class="admin-card">
+      <h2>Opportunities</h2>
+      <div id="opList" class="op-list">Loading…</div>
+    </section>
+  </div>
+
+  <section class="admin-card" style="margin-bottom:24px">
+    <h2>Registered Students</h2>
+    <div class="table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Saved</th></tr></thead><tbody id="userRows"></tbody></table></div>
+  </section>
+
+  <section class="admin-card">
+    <h2>Recent Saves</h2>
+    <div class="table-wrap"><table class="admin-table"><thead><tr><th>Student</th><th>Email</th><th>Opportunity</th><th>Saved At</th></tr></thead><tbody id="saveRows"></tbody></table></div>
+  </section>
+</main>
+
+<script>
+let opportunities=[];
+
+async function api(url, options={}){
+  const r=await fetch(url,options);
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){location.href='admin-login.html';throw new Error('Unauthorized')}
+  if(!r.ok) throw new Error(d.error||'Request failed');
+  return d;
+}
+function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+
+async function load(){
+  const me=await api('/api/admin/me');
+  adminEmail.textContent='Logged in as '+me.admin.email;
+  const stats=await api('/api/admin/stats');
+  userCount.textContent=stats.users; opCount.textContent=stats.opportunities; saveCount.textContent=stats.saves;
+  const od=await api('/api/opportunities'); opportunities=od.opportunities; renderOps();
+  const ud=await api('/api/admin/users');
+  userRows.innerHTML=ud.users.length?ud.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.created_at)}</td><td>${u.saved_count}</td></tr>`).join(''):'<tr><td colspan="4">No students yet.</td></tr>';
+  const sd=await api('/api/admin/applications');
+  saveRows.innerHTML=sd.applications.length?sd.applications.map(a=>`<tr><td>${esc(a.user_name)}</td><td>${esc(a.user_email)}</td><td>${esc(a.opportunity_title)}</td><td>${esc(a.created_at)}</td></tr>`).join(''):'<tr><td colspan="4">No saved opportunities yet.</td></tr>';
+}
+function renderOps(){
+  opList.innerHTML=opportunities.length?opportunities.map(o=>`<div class="op-row"><h3>${esc(o.title)}</h3><p>${esc(o.category)} · ${esc(o.deadline||'')}</p><p>${esc(o.description)}</p><button class="small-btn edit" onclick="editOp(${o.id})">Edit</button><button class="small-btn delete" onclick="deleteOp(${o.id})">Delete</button></div>`).join(''):'<p>No opportunities.</p>';
+}
+function editOp(id){
+  const o=opportunities.find(x=>x.id===id);if(!o)return;
+  editId.value=o.id; title.value=o.title; category.value=o.category; description.value=o.description; deadline.value=o.deadline||''; link.value=o.link||'';
+  formTitle.textContent='Edit Opportunity'; submitBtn.textContent='Save Changes'; cancelEdit.style.display='inline-block'; window.scrollTo({top:0,behavior:'smooth'});
+}
+cancelEdit.onclick=()=>{editId.value='';opForm.reset();formTitle.textContent='Add Opportunity';submitBtn.textContent='Add Opportunity';cancelEdit.style.display='none';opMessage.textContent=''}
+opForm.onsubmit=async e=>{
+  e.preventDefault();opMessage.textContent='';
+  const body={title:title.value,category:category.value,description:description.value,deadline:deadline.value,link:link.value};
+  try{
+    if(editId.value) await api('/api/admin/opportunities/'+editId.value,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else await api('/api/admin/opportunities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    cancelEdit.onclick(); await load();
+  }catch(err){opMessage.textContent=err.message}
+}
+async function deleteOp(id){
+  if(!confirm('Delete this opportunity?'))return;
+  try{await api('/api/admin/opportunities/'+id,{method:'DELETE'});await load()}catch(err){alert(err.message)}
+}
+async function logout(){await fetch('/api/admin/logout',{method:'POST'});location.href='index.html'}
+document.getElementById('logout').onclick=e=>{e.preventDefault();logout()};document.getElementById('logout2').onclick=logout;
+load().catch(()=>location.href='admin-login.html');
+</script>
+</body>
+</html>
